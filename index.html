@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplicativo Interactivo de Seguimiento</title>
+    <style>
+        /* ====================
+           1. ESTILOS BASE Y VARIABLES
+           ==================== */
+        :root {
+            --color-dias: #2E86C1; /* Azul: Contador de días */
+            --color-tiempo: #E74C3C; /* Rojo: Horas/Minutos/Segundos */
+            --color-fondo-actual: #D5F5E3; /* Verde claro */
+            --color-fondo-pasado: #ECF0F1; /* Gris claro */
+            --color-sombra: rgba(0, 0, 0, 0.15);
+            --color-primario: #3498DB; /* Azul para completado */
+            --color-secundario: #2ECC71; /* Verde para switch activo */
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+            line-height: 1.6;
+        }
+        .contenedor {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        /* Contenedores principales */
+        .contador, .tablero-sprints {
+            background: white;
+            padding: 30px 20px;
+            margin-bottom: 30px;
+            border-radius: 12px;
+            box-shadow: 0 6px 15px var(--color-sombra);
+        }
+        /* ====================
+           2. ESTILOS CONTADOR (Diseño Jerárquico B)
+           ==================== */
+        .contador {
+            text-align: center;
+        }
+        .contador h1 {
+            color: #555;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+        }
+        /* Días Hábiles (Número Grande) */
+        #dias-habiles-display {
+            font-size: 5em;
+            font-weight: 700;
+            color: var(--color-dias);
+            display: block;
+            line-height: 1;
+        }
+        #etiqueta-dias {
+            font-size: 1.4em;
+            color: var(--color-dias);
+            font-weight: 500;
+            display: block;
+            margin-bottom: 20px;
+        }
+        /* Horas/Minutos/Segundos (Texto Secundario) */
+        #tiempo-restante {
+            font-size: 1.2em;
+            color: #777;
+            font-weight: 400;
+        }
+        #horas, #minutos, #segundos {
+            color: var(--color-tiempo);
+            font-weight: 600;
+        }
+        .alerta-final {
+            color: var(--color-tiempo);
+            font-weight: 700;
+            font-size: 1.3em;
+            margin-top: 20px;
+            padding: 10px;
+            border: 2px solid var(--color-tiempo);
+            border-radius: 6px;
+            animation: pulse 1s infinite alternate;
+        }
+        @keyframes pulse {
+            from { opacity: 1; }
+            to { opacity: 0.8; }
+        }
+        /* ====================
+           3. ESTILOS TABLERO DE SPRINTS
+           ==================== */
+        .tablero-sprints h2 {
+            border-bottom: 2px solid var(--color-fondo-pasado);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            color: #444;
+        }
+        .sprint {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+            transition: background-color 0.3s ease, border-left 0.3s ease;
+        }
+        /* Estados Dinámicos */
+        .sprint.actual {
+            background-color: var(--color-fondo-actual);
+            border: 1px solid var(--color-secundario);
+        }
+        .sprint.pasado {
+            background-color: var(--color-fondo-pasado);
+            color: #888;
+        }
+
+        /* Sprint completado manualmente (prevalece visualmente) */
+        .sprint.completado {
+            background-color: #EBF5FB; /* Azul muy claro */
+            border-left: 6px solid var(--color-primario);
+            color: #333; /* Color de texto más legible */
+        }
+
+        .sprint span {
+            font-weight: 500;
+        }
+        /* ====================
+           4. ESTILOS SWITCH (iOS-like)
+           ==================== */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+            margin-left: 15px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 28px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        input:checked + .slider {
+            background-color: var(--color-secundario);
+        }
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+        /* Estilo para switches deshabilitados */
+        input:disabled + .slider {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .sprint.pasado .switch input + .slider {
+             background-color: #AAB7B8; /* Gris oscuro para pasados */
+        }
+        .sprint.pasado .switch input:checked + .slider {
+             background-color: #85C59F; /* Verde suave, indicando completado fijo */
+        }
+        /* ====================
+           5. BOTÓN DE RESETEO
+           ==================== */
+        #btn-reset {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-top: 25px;
+            background-color: #9B59B6; /* Morado */
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+        #btn-reset:hover {
+            background-color: #8E44AD;
+        }
+        /* ====================
+           6. RESPONSIVE
+           ==================== */
+        @media (max-width: 600px) {
+            .contador h1 {
+                font-size: 1.2em;
+            }
+            #dias-habiles-display {
+                font-size: 3.5em;
+            }
+            #etiqueta-dias {
+                font-size: 1.1em;
+            }
+            .sprint {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 10px;
+            }
+            .sprint span {
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="contenedor">
+        <div class="contador">
+            <h1>Tiempo restante para entrega de requerimientos</h1>
+            <span id="dias-habiles-display">--</span>
+            <span id="etiqueta-dias">DÍAS HÁBILES</span>
+            <div id="tiempo-restante">
+                <span id="horas">--</span> horas,
+                <span id="minutos">--</span> minutos,
+                <span id="segundos">--</span> segundos.
+            </div>
+            <div id="alerta-final" class="alerta-final" style="display: none;">🚨 ¡ENTREGA INMINENTE! Menos de 5 días hábiles.</div>
+        </div>
+        <div class="tablero-sprints">
+            <h2>Tablero de Sprints</h2>
+            <div class="sprint" data-nombre="Sprint 5" data-inicio="2025-09-23" data-fin="2025-10-06">
+                <span>Sprint 5: 23 sept - 06 oct (<span class="dias-habiles-sprint">--</span> días hábiles)</span>
+                <label class="switch">
+                    <input type="checkbox" data-sprint-id="5">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="sprint" data-nombre="Sprint 6" data-inicio="2025-10-07" data-fin="2025-10-21">
+                <span>Sprint 6: 07 oct - 21 oct (<span class="dias-habiles-sprint">--</span> días hábiles)</span>
+                <label class="switch">
+                    <input type="checkbox" data-sprint-id="6">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="sprint" data-nombre="Sprint 7" data-inicio="2025-10-22" data-fin="2025-11-05">
+                <span>Sprint 7: 22 oct - 05 nov (<span class="dias-habiles-sprint">--</span> días hábiles)</span>
+                <label class="switch">
+                    <input type="checkbox" data-sprint-id="7">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="sprint" data-nombre="Sprint 8" data-inicio="2025-11-06" data-fin="2025-11-20">
+                <span>Sprint 8: 06 nov - 20 nov (<span class="dias-habiles-sprint">--</span> días hábiles)</span>
+                <label class="switch">
+                    <input type="checkbox" data-sprint-id="8">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="sprint" data-nombre="Sprint 9" data-inicio="2025-11-21" data-fin="2025-12-09">
+                <span>Sprint 9: 21 nov - 09 dic (<span class="dias-habiles-sprint">--</span> días hábiles)</span>
+                <label class="switch">
+                    <input type="checkbox" data-sprint-id="9">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <button id="btn-reset">⚠️ Resetear Estados Manuales de Sprints</button>
+        </div>
+    </div>
+    <script>
+        // La fecha actual para la prueba es Lunes, 6 de octubre de 2025.
+        const FECHA_OBJETIVO = new Date('2025-12-19T00:00:00'); // 19 de diciembre de 2025
+
+        // Festivos de Colombia a excluir (ahora como objetos Date)
+        const FESTIVOS = [
+            new Date('2025-10-13'), // Día de la Raza
+            new Date('2025-11-03'), // Todos los Santos
+            new Date('2025-11-17'), // Independencia de Cartagena
+            new Date('2025-12-08')  // Inmaculada Concepción
+        ];
+
+        /* ====================================
+           3. LÓGICA DE DÍAS HÁBILES (NÚCLEO)
+           ==================================== */
+
+        /**
+         * Determina si una fecha específica es un día hábil.
+         */
+        function esDiaHabil(fecha) {
+            const diaSemana = fecha.getDay();
+            const esFinDeSemana = diaSemana === 0 || diaSemana === 6; // Domingo=0, Sábado=6
+
+            // Compara la fecha con la lista de festivos
+            const esFestivo = FESTIVOS.some(festivo =>
+                fecha.getDate() === festivo.getDate() &&
+                fecha.getMonth() === festivo.getMonth() &&
+                fecha.getFullYear() === festivo.getFullYear()
+            );
+
+            return !esFinDeSemana && !esFestivo;
+        }
+
+        /**
+         * Calcula el número total de días hábiles entre hoy y la fecha objetivo.
+         */
+        function calcularDiasHabilesRestantes() {
+            let diasHabiles = 0;
+            let fechaActual = new Date();
+
+            // Normalizar a medianoche para el conteo de días
+            fechaActual.setHours(0, 0, 0, 0);
+            const fechaObjetivo = new Date(FECHA_OBJETIVO);
+            fechaObjetivo.setHours(0, 0, 0, 0);
+
+            // Itera día por día (la forma más precisa de contar)
+            while (fechaActual < fechaObjetivo) {
+                if (esDiaHabil(new Date(fechaActual))) {
+                    diasHabiles++;
+                }
+                // Avanza al siguiente día
+                fechaActual.setDate(fechaActual.getDate() + 1);
+            }
+            return diasHabiles;
+        }
+
+        /**
+         * Calcula días hábiles en un rango de fechas específico (para sprints)
+         */
+        function calcularDiasHabilesEnRango(inicioStr, finStr) {
+            let dias = 0;
+            const inicio = new Date(inicioStr);
+            const fin = new Date(finStr);
+
+            for (let fecha = new Date(inicio); fecha <= fin; fecha.setDate(fecha.getDate() + 1)) {
+                if (esDiaHabil(new Date(fecha))) {
+                    dias++;
+                }
+            }
+            return dias;
+        }
+
+        // Variables para optimizar el contador
+        let ultimoDiaVerificado = new Date().toDateString();
+        let diasHabilesCache = calcularDiasHabilesRestantes();
+
+        /**
+         * Actualiza el DOM del contador cada segundo (optimizado).
+         */
+        function actualizarContador() {
+            const ahora = new Date();
+            const distancia = FECHA_OBJETIVO.getTime() - ahora.getTime();
+
+            // Recalcular días hábiles solo si cambió el día
+            if (ahora.toDateString() !== ultimoDiaVerificado) {
+                ultimoDiaVerificado = ahora.toDateString();
+                diasHabilesCache = calcularDiasHabilesRestantes();
+                document.getElementById('dias-habiles-display').textContent = diasHabilesCache.toString().padStart(2, '0');
+            }
+
+            // CÁLCULO DE TIEMPO (horas, minutos, segundos)
+            const horas = Math.floor((distancia % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutos = Math.floor((distancia % (1000 * 60 * 60)) / (1000 * 60));
+            const segundos = Math.floor((distancia % (1000 * 60)) / 1000);
+
+            // ACTUALIZACIÓN DEL DOM
+            document.getElementById('horas').textContent = horas.toString().padStart(2, '0');
+            document.getElementById('minutos').textContent = minutos.toString().padStart(2, '0');
+            document.getElementById('segundos').textContent = segundos.toString().padStart(2, '0');
+
+            // ALERTA: Notificación si quedan menos de 5 días hábiles
+            const alerta = document.getElementById('alerta-final');
+            if (diasHabilesCache < 5 && distancia > 0) {
+                alerta.style.display = 'block';
+            } else {
+                alerta.style.display = 'none';
+            }
+
+            if (distancia < 0) {
+                clearInterval(intervaloContador);
+                document.getElementById('dias-habiles-display').textContent = '00';
+                document.getElementById('etiqueta-dias').textContent = 'ENTREGA FINALIZADA';
+                document.getElementById('tiempo-restante').textContent = '00 horas, 00 minutos, 00 segundos.';
+            }
+        }
+
+        /* ====================================
+           4. LÓGICA DE TABLERO DE SPRINTS
+           ==================================== */
+
+        const sprintElements = document.querySelectorAll('.sprint');
+        const sprintCheckboxes = document.querySelectorAll('.sprint input[type="checkbox"]');
+
+        /**
+         * Carga el estado guardado en localStorage y aplica las clases
+         * automáticas (pasado/actual/futuro) según la fecha del sistema.
+         * También calcula y muestra los días hábiles por sprint.
+         */
+        function marcarSprintActual() {
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0); // Normalizar a medianoche
+            const estadosGuardados = JSON.parse(localStorage.getItem('sprint_estados_manuales')) || {};
+
+            sprintElements.forEach(sprintDiv => {
+                const fechaInicio = new Date(sprintDiv.dataset.inicio + 'T00:00:00');
+                const fechaFin = new Date(sprintDiv.dataset.fin + 'T23:59:59');
+                const checkbox = sprintDiv.querySelector('input[type="checkbox"]');
+                const sprintId = checkbox.dataset.sprintId;
+                const diasHabilesSpan = sprintDiv.querySelector('.dias-habiles-sprint');
+
+                // Calcular días hábiles del sprint
+                const diasHabiles = calcularDiasHabilesEnRango(
+                    sprintDiv.dataset.inicio,
+                    sprintDiv.dataset.fin
+                );
+                diasHabilesSpan.textContent = diasHabiles;
+
+                // 1. Resetear y determinar estado automático
+                sprintDiv.classList.remove('actual', 'pasado', 'completado');
+                checkbox.disabled = false;
+                checkbox.checked = false;
+
+                if (hoy > fechaFin) {
+                    // SPRINT PASADO: Fijo y completado
+                    sprintDiv.classList.add('pasado');
+                    checkbox.checked = true;
+                    checkbox.disabled = true;
+                } else if (hoy >= fechaInicio && hoy <= fechaFin) {
+                    // SPRINT ACTUAL: Marcado como actual, es editable
+                    sprintDiv.classList.add('actual');
+                }
+
+                // 2. Aplicar Persistencia (Si no es un sprint pasado, el estado manual persiste)
+                if (estadosGuardados.hasOwnProperty(sprintId) && !sprintDiv.classList.contains('pasado')) {
+                    checkbox.checked = estadosGuardados[sprintId];
+                    if (checkbox.checked) {
+                        sprintDiv.classList.add('completado');
+                        sprintDiv.classList.remove('actual');
+                    }
+                }
+
+                // Si es un sprint pasado, la persistencia se ignora y se fuerza a "completado fijo"
+                if (sprintDiv.classList.contains('pasado')) {
+                    checkbox.checked = true;
+                    checkbox.disabled = true;
+                }
+            });
+        }
+
+        /**
+         * Maneja el cambio manual del switch y guarda el estado en localStorage.
+         */
+        function guardarEstadoSwitch(event) {
+            const checkbox = event.target;
+            const sprintId = checkbox.dataset.sprintId;
+            const sprintDiv = checkbox.closest('.sprint');
+
+            if (!checkbox.disabled) {
+                let estadosGuardados = JSON.parse(localStorage.getItem('sprint_estados_manuales')) || {};
+                estadosGuardados[sprintId] = checkbox.checked;
+                localStorage.setItem('sprint_estados_manuales', JSON.stringify(estadosGuardados));
+
+                // Aplicar clase visual
+                if (checkbox.checked) {
+                    sprintDiv.classList.add('completado');
+                    sprintDiv.classList.remove('actual');
+                } else {
+                    sprintDiv.classList.remove('completado');
+                    marcarSprintActual();
+                }
+            }
+        }
+
+        /**
+         * Botón de Reseteo: Limpia la persistencia manual de localStorage.
+         */
+        function resetearSwitches() {
+            if (confirm("⚠️ ¿Estás seguro de que quieres borrar todos los estados de los sprints marcados manualmente? Volverán al estado automático basado en la fecha.")) {
+                localStorage.removeItem('sprint_estados_manuales');
+                marcarSprintActual();
+                alert("Estados de sprints reseteados exitosamente.");
+            }
+        }
+
+        // ====================
+        // INICIALIZACIÓN DE LA APP
+        // ====================
+        // Configurar los listeners para la persistencia
+        sprintCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', guardarEstadoSwitch);
+        });
+
+        // Listener para el botón de reseteo
+        document.getElementById('btn-reset').addEventListener('click', resetearSwitches);
+
+        // 1. Inicializar el estado de los sprints (incluyendo días hábiles)
+        marcarSprintActual();
+
+        // 2. Inicializar el contador inmediatamente y luego configurar el intervalo optimizado
+        document.getElementById('dias-habiles-display').textContent = diasHabilesCache.toString().padStart(2, '0');
+        const intervaloContador = setInterval(actualizarContador, 1000);
+    </script>
+</body>
+</html>
